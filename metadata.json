@@ -1,0 +1,5 @@
+{
+  "name": "LingoVoice Assistant",
+  "description": "A voice-powered language learning assistant with real-time translation and high-quality speech synthesis.",
+  "requestFramePermissions": ["microphone"]
+}
