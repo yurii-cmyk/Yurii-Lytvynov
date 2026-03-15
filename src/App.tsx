@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Volume2, Languages, Send, Loader2, Settings2, CheckCircle2, XCircle, RotateCcw, Trash2, Sparkles, ChevronDown, Check } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { translateText, translateTextStream, generateSpeech, analyzeSpeech, analyzeSpeechStream, fixPunctuation, AVAILABLE_VOICES, LANGUAGES, getApiKey, hasApiKey } from './services/geminiService';
 
 /**
