@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Volume2, Languages, Send, Loader2, Settings2, CheckCircle2, XCircle, RotateCcw, Trash2, Sparkles, ChevronDown, Check } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { translateText, translateTextStream, generateSpeech, analyzeSpeech, analyzeSpeechStream, fixPunctuation, AVAILABLE_VOICES, LANGUAGES, getApiKey, hasApiKey } from './services/geminiService';
+import { motion, AnimatePresence } from 'motion/react';
+import { translateText, translateTextStream, generateSpeech, analyzeSpeech, analyzeSpeechStream, fixPunctuation, AVAILABLE_VOICES, LANGUAGES } from './services/geminiService';
 
 /**
  * @license
@@ -92,11 +92,6 @@ export default function App() {
   const [practiceFeedback, setPracticeFeedback] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [targetPhrase, setTargetPhrase] = useState('');
-
-  // API Key State
-  const [apiKey, setApiKey] = useState(getApiKey());
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showKeyPrompt, setShowKeyPrompt] = useState(!hasApiKey());
 
   const [fromLang, setFromLang] = useState(() => {
     const saved = localStorage.getItem('fromLangCode');
@@ -302,19 +297,6 @@ export default function App() {
     }
   };
 
-  const handleSaveApiKey = (key: string) => {
-    localStorage.setItem('gemini_api_key', key);
-    setApiKey(key);
-    setShowKeyPrompt(false);
-    setIsSettingsOpen(false);
-  };
-
-  const handleClearApiKey = () => {
-    localStorage.removeItem('gemini_api_key');
-    setApiKey(process.env.GEMINI_API_KEY || "");
-    setShowKeyPrompt(!process.env.GEMINI_API_KEY);
-  };
-
   const handleSpeak = async (text: string) => {
     if (!text) return;
 
@@ -349,15 +331,8 @@ export default function App() {
         </div>
         
         <div className="flex gap-4 items-center">
-          <button 
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-[#5A5A40] hover:bg-black/5 rounded-full transition-colors"
-            title="API Settings"
-          >
-            <Settings2 size={20} />
-          </button>
           <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-black/5">
-            <Volume2 size={16} className="text-[#5A5A40]" />
+            <Settings2 size={16} className="text-[#5A5A40]" />
             <CustomSelect 
               value={selectedVoice}
               options={AVAILABLE_VOICES.map(v => ({ value: v, label: `${v} Voice` }))}
@@ -564,84 +539,6 @@ export default function App() {
       <footer className="mt-12 text-center text-xs text-black/40 uppercase tracking-[0.2em]">
         Powered by Gemini AI • High Fidelity Voice Synthesis
       </footer>
-      {/* API Key Prompt / Settings Modal */}
-      <AnimatePresence>
-        {(showKeyPrompt || isSettingsOpen) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-[32px] p-8 max-w-md w-full shadow-2xl border border-black/5"
-            >
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-2xl font-serif font-bold text-black mb-2">
-                    {showKeyPrompt ? 'Welcome to LingoFlow' : 'Settings'}
-                  </h2>
-                  <p className="text-black/60 text-sm">
-                    {showKeyPrompt 
-                      ? 'To start translating and practicing, please enter your Gemini API Key. Your key is stored locally in your browser.' 
-                      : 'Manage your API key and application settings.'}
-                  </p>
-                </div>
-                {!showKeyPrompt && (
-                  <button 
-                    onClick={() => setIsSettingsOpen(false)}
-                    className="p-2 hover:bg-black/5 rounded-full transition-colors"
-                  >
-                    <XCircle size={24} className="text-black/40" />
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-black/40 mb-2">
-                    Gemini API Key
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Enter your API key..."
-                      className="w-full bg-[#F5F5F0] border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#5A5A40] transition-all"
-                    />
-                  </div>
-                  <p className="mt-2 text-[10px] text-black/40 leading-relaxed">
-                    You can get a free API key from the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[#5A5A40] underline font-bold">Google AI Studio</a>.
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => handleSaveApiKey(apiKey)}
-                    disabled={!apiKey}
-                    className="flex-1 bg-[#5A5A40] text-white py-3 rounded-2xl text-sm font-bold uppercase tracking-widest hover:bg-[#4A4A30] transition-all disabled:opacity-50"
-                  >
-                    Save Key
-                  </button>
-                  {!showKeyPrompt && (
-                    <button
-                      onClick={handleClearApiKey}
-                      className="px-4 py-3 rounded-2xl text-sm font-bold uppercase tracking-widest border border-red-100 text-red-500 hover:bg-red-50 transition-all"
-                      title="Clear Key"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
