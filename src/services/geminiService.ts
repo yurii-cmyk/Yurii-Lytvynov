@@ -1,7 +1,11 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Ініціалізація AI
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
+/**
+ * Допоміжна функція для конвертації PCM у WAV
+ */
 function pcmToWav(pcmBase64: string, sampleRate: number = 24000): string {
   const binaryString = window.atob(pcmBase64);
   const len = binaryString.length;
@@ -13,48 +17,60 @@ function pcmToWav(pcmBase64: string, sampleRate: number = 24000): string {
   const wavHeader = new ArrayBuffer(44);
   const view = new DataView(wavHeader);
 
-  // RIFF identifier
   view.setUint32(0, 0x52494646, false); // "RIFF"
-  // file length
   view.setUint32(4, 36 + len, true);
-  // RIFF type
   view.setUint32(8, 0x57415645, false); // "WAVE"
-  // format chunk identifier
   view.setUint32(12, 0x666d7420, false); // "fmt "
-  // format chunk length
   view.setUint32(16, 16, true);
-  // sample format (raw PCM)
   view.setUint16(20, 1, true);
-  // channel count
-  view.setUint16(22, 1, true); // mono
-  // sample rate
+  view.setUint16(22, 1, true); 
   view.setUint32(24, sampleRate, true);
-  // byte rate (sample rate * block align)
   view.setUint32(28, sampleRate * 2, true);
-  // block align (channel count * bytes per sample)
   view.setUint16(32, 2, true);
-  // bits per sample
   view.setUint16(34, 16, true);
-  // data chunk identifier
   view.setUint32(36, 0x64617461, false); // "data"
-  // data chunk length
-  view.setUint32(40, len, true);
+  view.setUint40(40, len, true);
 
   const blob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
   return URL.createObjectURL(blob);
 }
 
+/**
+ * ПЕРЕКЛАД (Звичайний)
+ */
 export async function translateText(text: string, fromLang: string, toLang: string) {
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Translate the following text from ${fromLang} to ${toLang}. Only provide the translation, nothing else.\n\nText: ${text}`,
+    model: "gemini-2.0-flash",
+    contents: [{ role: "user", parts: [{ text: `Translate from ${fromLang} to ${toLang}: ${text}` }] }],
   });
   return response.text?.trim() || "";
 }
 
+/**
+ * ПЕРЕКЛАД (Потоковий - STREAMING)
+ * Використовується в App.tsx
+ */
+export async function* translateTextStream(text: string, fromLang: string, toLang: string) {
+  const result = await ai.models.generateContentStream({
+    model: "gemini-2.0-flash",
+    contents: [{ 
+      role: "user", 
+      parts: [{ text: `Translate the following text from ${fromLang} to ${toLang}. Only provide the translation, nothing else.\n\nText: ${text}` }] 
+    }],
+  });
+
+  for await (const chunk of result.stream) {
+    const chunkText = chunk.text;
+    if (chunkText) yield chunkText;
+  }
+}
+
+/**
+ * ОЗВУЧКА (TTS)
+ */
 export async function generateSpeech(text: string, voiceName: string = 'Kore') {
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
+    model: "gemini-2.0-flash-exp", // Переконайтеся, що модель підтримує TTS
     contents: [{ parts: [{ text }] }],
     config: {
       responseModalities: [Modality.AUDIO],
@@ -68,32 +84,57 @@ export async function generateSpeech(text: string, voiceName: string = 'Kore') {
 
   const part = response.candidates?.[0]?.content?.parts?.[0];
   if (part?.inlineData?.data) {
-    // Gemini TTS returns raw PCM 24kHz. We wrap it in a WAV header for browser playback.
     return pcmToWav(part.inlineData.data, 24000);
   }
   throw new Error("Failed to generate speech");
 }
 
+/**
+ * АНАЛІЗ МОВЛЕННЯ (Звичайний)
+ */
 export async function analyzeSpeech(targetText: string, studentText: string, language: string) {
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are a language teacher. Compare the student's spoken text with the target text in ${language}. 
-    Target: "${targetText}"
-    Student spoke: "${studentText}"
-    
-    Provide a brief, encouraging feedback in Ukrainian. Point out any missing words, wrong words, or pronunciation hints if the text suggests them. Keep it concise.`,
+    model: "gemini-2.0-flash",
+    contents: [{ 
+      role: "user", 
+      parts: [{ text: `You are a language teacher. Compare target: "${targetText}" and student: "${studentText}" in ${language}. Feedback in Ukrainian, concise.` }] 
+    }],
   });
-  return response.text?.trim() || "Не вдалося проаналізувати відповідь.";
+  return response.text?.trim() || "Не вдалося проаналізувати.";
 }
 
+/**
+ * АНАЛІЗ МОВЛЕННЯ (Потоковий)
+ * Використовується в App.tsx для режиму практики
+ */
+export async function* analyzeSpeechStream(targetText: string, studentText: string, language: string) {
+  const result = await ai.models.generateContentStream({
+    model: "gemini-2.0-flash",
+    contents: [{ 
+      role: "user", 
+      parts: [{ text: `You are a language teacher. Compare the student's spoken text with the target text in ${language}. 
+      Target: "${targetText}"
+      Student spoke: "${studentText}"
+      Provide a brief, encouraging feedback in Ukrainian. Point out errors. Keep it concise.` }] 
+    }],
+  });
+
+  for await (const chunk of result.stream) {
+    const chunkText = chunk.text;
+    if (chunkText) yield chunkText;
+  }
+}
+
+/**
+ * ВИПРАВЛЕННЯ ПУНКТУАЦІЇ
+ */
 export async function fixPunctuation(text: string, language: string) {
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Fix the punctuation and capitalization of the following text in ${language}. 
-    Do not change the words, only add punctuation marks like periods, commas, question marks, and exclamation marks based on the context. 
-    Return only the fixed text, nothing else.
-    
-    Text: ${text}`,
+    model: "gemini-2.0-flash",
+    contents: [{ 
+      role: "user", 
+      parts: [{ text: `Fix punctuation and capitalization in ${language} (return only text): ${text}` }] 
+    }],
   });
   return response.text?.trim() || text;
 }
